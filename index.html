@@ -2,12 +2,222 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>AI Video Studio</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            background: #f3f4f6;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        .card {
+            max-width: 600px;
+            width: 100%;
+            background: white;
+            border-radius: 1.5rem;
+            box-shadow: 0 20px 35px -8px rgba(0,0,0,0.1);
+            padding: 1.5rem;
+        }
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 0 0 0.25rem 0;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .sub {
+            text-align: center;
+            color: #6b7280;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+        }
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 1rem;
+            font-size: 1rem;
+            resize: vertical;
+            font-family: inherit;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+        }
+        button {
+            width: 100%;
+            margin-top: 1rem;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 2rem;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .error {
+            margin-top: 1rem;
+            background: #fee2e2;
+            color: #b91c1c;
+            padding: 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.9rem;
+        }
+        .video-container {
+            margin-top: 1.5rem;
+            text-align: center;
+        }
+        video {
+            width: 100%;
+            border-radius: 1rem;
+            background: #000;
+            max-height: 400px;
+        }
+        .download-btn {
+            background: #10b981;
+            margin-top: 0.75rem;
+        }
+        .loader {
+            display: inline-block;
+            width: 1.2rem;
+            height: 1.2rem;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .footer-note {
+            margin-top: 1.5rem;
+            font-size: 0.7rem;
+            text-align: center;
+            color: #9ca3af;
+        }
+    </style>
 </head>
 <body>
+<div class="card">
     <h1>🎬 AI Video Studio</h1>
-    <p>Your Vercel app is now live!</p>
-    <p>Next step: add the full AI generator interface.</p>
+    <div class="sub">Turn text into cinematic video</div>
+
+    <textarea id="promptInput" rows="3" placeholder="Describe your video...&#10;Example: 'A cat walking on a rainbow'"></textarea>
+
+    <button id="generateBtn">✨ Generate Video</button>
+
+    <div id="errorMsg" style="display: none;" class="error"></div>
+
+    <div id="videoSection" style="display: none;" class="video-container">
+        <video id="outputVideo" controls playsinline></video>
+        <button id="downloadBtn" class="download-btn">📥 Download to Phone</button>
+    </div>
+    <div class="footer-note">
+        Generation takes 30–90 seconds ⏱️<br>
+        Videos are saved to your gallery / downloads folder.
+    </div>
+</div>
+
+<script>
+    const API_URL = '/api/generate.js';
+    const promptInput = document.getElementById('promptInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const errorDiv = document.getElementById('errorMsg');
+    const videoSection = document.getElementById('videoSection');
+    const outputVideo = document.getElementById('outputVideo');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let currentVideoBlobUrl = null;
+
+    function showError(msg) {
+        errorDiv.textContent = msg;
+        errorDiv.style.display = 'block';
+        setTimeout(() => {
+            errorDiv.style.display = 'none';
+        }, 8000);
+    }
+
+    function resetUI() {
+        videoSection.style.display = 'none';
+        if (currentVideoBlobUrl) {
+            URL.revokeObjectURL(currentVideoBlobUrl);
+            currentVideoBlobUrl = null;
+        }
+        outputVideo.src = '';
+    }
+
+    generateBtn.addEventListener('click', async () => {
+        const prompt = promptInput.value.trim();
+        if (!prompt) {
+            showError('Please enter a video description');
+            return;
+        }
+
+        resetUI();
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<div class="loader"></div> Generating... (1-2 min)';
+
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || `Server error: ${response.status}`);
+            }
+
+            if (!data.videoUrl) {
+                throw new Error('No video URL returned');
+            }
+
+            const blob = await (await fetch(data.videoUrl)).blob();
+            currentVideoBlobUrl = URL.createObjectURL(blob);
+            outputVideo.src = currentVideoBlobUrl;
+            videoSection.style.display = 'block';
+
+        } catch (err) {
+            console.error(err);
+            showError(err.message || 'Failed to generate video. Try again later.');
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '✨ Generate Video';
+        }
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+        if (!currentVideoBlobUrl) {
+            showError('No video to download. Generate one first.');
+            return;
+        }
+        const a = document.createElement('a');
+        a.href = currentVideoBlobUrl;
+        a.download = `ai-video-${Date.now()}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    });
+</script>
 </body>
 </html>
