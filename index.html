@@ -137,7 +137,90 @@
 </div>
 
 <script>
-    const API_URL = 'https://render-video-api-1.onrender.com/api/generate-video';';';';
+    <script>
+    const API_URL = 'https://render-video-api-1.onrender.com/api/generate-video';
+    const promptInput = document.getElementById('promptInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const errorDiv = document.getElementById('errorMsg');
+    const videoSection = document.getElementById('videoSection');
+    const outputVideo = document.getElementById('outputVideo');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let currentVideoBlobUrl = null;
+
+    function showError(msg) {
+        errorDiv.textContent = msg;
+        errorDiv.style.display = 'block';
+        setTimeout(() => {
+            errorDiv.style.display = 'none';
+        }, 8000);
+    }
+
+    function resetUI() {
+        videoSection.style.display = 'none';
+        if (currentVideoBlobUrl) {
+            URL.revokeObjectURL(currentVideoBlobUrl);
+            currentVideoBlobUrl = null;
+        }
+        outputVideo.src = '';
+    }
+
+    generateBtn.addEventListener('click', async () => {
+        const prompt = promptInput.value.trim();
+        if (!prompt) {
+            showError('Please enter a video description');
+            return;
+        }
+
+        resetUI();
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<div class="loader"></div> Generating... (1-2 min)';
+
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data.videoUrl) {
+                throw new Error('No video URL returned from server');
+            }
+
+            // Convert base64 data URL to blob for reliable downloading
+            const blob = await (await fetch(data.videoUrl)).blob();
+            currentVideoBlobUrl = URL.createObjectURL(blob);
+            outputVideo.src = currentVideoBlobUrl;
+            videoSection.style.display = 'block';
+
+        } catch (err) {
+            console.error(err);
+            showError(err.message || 'Failed to generate video. Check your internet or try again later.');
+        } finally {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '✨ Generate Video';
+        }
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+        if (!currentVideoBlobUrl) {
+            showError('No video to download. Please generate one first.');
+            return;
+        }
+        const a = document.createElement('a');
+        a.href = currentVideoBlobUrl;
+        a.download = `ai-video-${Date.now()}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    });
+</script>';';';';
     const promptInput = document.getElementById('promptInput');
     const generateBtn = document.getElementById('generateBtn');
     const errorDiv = document.getElementById('errorMsg');
