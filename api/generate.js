@@ -1,40 +1,56 @@
-import { InferenceClient } from "@huggingface/inference";
-
-// Use the HF_TOKEN you already set in your Vercel Environment Variables
-const client = new InferenceClient(process.env.HF_TOKEN);
-
 export default async function handler(req, res) {
-  // 1. Only allow POST requests
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // 2. Extract the prompt from the request body
   const { prompt } = req.body;
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  // 3. Call the Hugging Face Inference API
-  //    Using a well-known, free text-to-video model.
+  const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+  if (!REPLICATE_API_TOKEN) {
+    return res.status(500).json({ error: 'Missing REPLICATE_API_TOKEN' });
+  }
+
+  const model = "lightricks/ltx-2-fast";
+  const input = { prompt, num_frames: 24, fps: 8 };
+
   try {
-    // This is the key part. We tell the API to generate the video,
-    // but we don't wait for it to finish.
-    const blob = await client.textToVideo({
-      model: 'damo-vilab/text-to-video-ms-1.7b',
-      inputs: prompt,
+    // Start prediction
+    const start = await fetch("https://api.replicate.com/v1/predictions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Token ${REPLICATE_API_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ version: model, input }),
     });
+    const { id } = await start.json();
 
-    // Convert the returned video data into a format the frontend can use
-    const buffer = Buffer.from(await blob.arrayBuffer());
+    // Poll for completion (max 15 seconds)
+    let prediction = { status: "starting" };
+    let attempts = 0;
+    while (prediction.status !== "succeeded" && attempts < 15) {
+      await new Promise(r => setTimeout(r, 1000));
+      const poll = await fetch(`https://api.replicate.com/v1/predictions/${id}`, {
+        headers: { "Authorization": `Token ${REPLICATE_API_TOKEN}` },
+      });
+      prediction = await poll.json();
+      attempts++;
+    }
+
+    if (prediction.status !== "succeeded") {
+      throw new Error(prediction.error || "Generation failed");
+    }
+
+    const videoUrl = prediction.output;
+    const videoRes = await fetch(videoUrl);
+    const buffer = Buffer.from(await videoRes.arrayBuffer());
     const base64 = buffer.toString('base64');
-    const videoUrl = `data:video/mp4;base64,${base64}`;
-
-    // Return the video URL to the frontend immediately.
-    return res.status(200).json({ videoUrl });
-
-  } catch (error) {
-    console.error('Generation error:', error);
-    return res.status(500).json({ error: 'Failed to generate video' });
+    res.json({ videoUrl: `data:video/mp4;base64,${base64}` });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 }
