@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // Allow CORS for development (already handled by Vercel)
+  // Allow CORS (optional, but good)
   res.setHeader('Access-Control-Allow-Origin', '*');
 
   if (req.method !== 'POST') {
@@ -11,11 +11,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  // A public, short, working sample video (Big Buck Bunny, 1 MB)
+  // Real, working sample video URL
   const sampleVideoUrl = 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4';
 
   try {
-    // Fetch the video, convert to base64, send it to the frontend
     const videoRes = await fetch(sampleVideoUrl);
     const buffer = Buffer.from(await videoRes.arrayBuffer());
     const base64 = buffer.toString('base64');
