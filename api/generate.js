@@ -1,7 +1,4 @@
 export default async function handler(req, res) {
-  // Allow CORS (optional, but good)
-  res.setHeader('Access-Control-Allow-Origin', '*');
-
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -11,7 +8,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  // Real, working sample video URL
+  // Public, working sample video (Big Buck Bunny)
   const sampleVideoUrl = 'https://sample-videos.com/video123/mp4/720/big_buck_bunny_720p_1mb.mp4';
 
   try {
